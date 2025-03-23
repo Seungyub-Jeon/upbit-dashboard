@@ -141,6 +141,24 @@ class UpbitAPI:
             logger.error(f"현재가 조회 중 에러 발생: {str(e)}")
             return None
     
+    def get_current_price(self, market):
+        """
+        현재 시장 가격을 반환합니다.
+        """
+        try:
+            ticker = self.get_ticker(market)
+            if not ticker or len(ticker) == 0:
+                logger.error(f"{market}의 현재가 정보를 가져올 수 없습니다.")
+                return None
+                
+            current_price = ticker[0].get('trade_price')
+            logger.info(f"{market} 현재가: {current_price}")
+            return current_price
+            
+        except Exception as e:
+            logger.error(f"현재가 조회 중 에러 발생: {str(e)}")
+            return None
+    
     def get_orderbook(self, markets):
         """
         Get order book
