@@ -257,10 +257,10 @@ app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     
     # 테마 스타일시트 (콜백으로 동적 변경)
-    dcc.Link(
+    html.Link(
+        id='theme-stylesheet',
         rel='stylesheet',
-        href=THEMES[current_theme],
-        id='theme-stylesheet'
+        href=THEMES[current_theme]
     ),
     
     # 주기적 업데이트를 위한 interval 컴포넌트 (5초마다)
