@@ -254,24 +254,26 @@ def create_performance_card():
 
 # Layout with responsive grid
 app.layout = html.Div([
-    # Theme stylesheet (will be updated by callbacks)
-    html.Link(
-        id="theme-stylesheet", 
-        rel="stylesheet", 
-        href=THEMES[current_theme]
+    dcc.Location(id='url', refresh=False),
+    
+    # 테마 스타일시트 (콜백으로 동적 변경)
+    dcc.Link(
+        rel='stylesheet',
+        href=THEMES[current_theme],
+        id='theme-stylesheet'
+    ),
+    
+    # 주기적 업데이트를 위한 interval 컴포넌트 (5초마다)
+    dcc.Interval(
+        id='interval-component',
+        interval=5 * 1000,  # 5초마다 실행 (밀리초 단위)
+        n_intervals=0
     ),
     
     # Google Fonts
     html.Link(
         href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap",
         rel="stylesheet"
-    ),
-    
-    # Interval component for updating data
-    dcc.Interval(
-        id='interval-component',
-        interval=DASHBOARD_CONFIG.get('refresh_interval', 5) * 1000,
-        n_intervals=0
     ),
     
     # Main container
@@ -999,23 +1001,26 @@ def update_performance_chart(n, theme_href):
 @app.callback(
     Output("trading-status", "children"),
     [Input("start-trading-btn", "n_clicks"),
-     Input("stop-trading-btn", "n_clicks")],
-    [State("trading-status", "children")]
+     Input("stop-trading-btn", "n_clicks"),
+     Input("interval-component", "n_intervals")]  # 주기적 업데이트 추가
 )
-def control_trading(start_clicks, stop_clicks, current_status):
+def control_trading(start_clicks, stop_clicks, n_intervals):
     ctx = dash.callback_context
     
+    # 콜백이 어떤 입력에 의해 트리거되었는지 확인
     if not ctx.triggered:
-        return "트레이딩 상태: 중지됨"
+        # 초기 로드 시 실제 엔진 상태 반영
+        return get_trading_status_text()
     
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
+    # 버튼 클릭 이벤트 처리
     if button_id == "start-trading-btn":
         if TRADING_ENGINE:
             logger.info("대시보드에서 거래 시작 버튼이 클릭되었습니다.")
             TRADING_ENGINE.start()
             logger.info("거래 엔진 시작 완료")
-            return "트레이딩 상태: 실행 중"
+            return get_trading_status_text()  # 실제 상태 반영
         else:
             logger.warning("거래 엔진이 초기화되지 않았습니다.")
             return "트레이딩 상태: 엔진 미초기화"
@@ -1025,12 +1030,18 @@ def control_trading(start_clicks, stop_clicks, current_status):
             logger.info("대시보드에서 거래 중지 버튼이 클릭되었습니다.")
             TRADING_ENGINE.stop()
             logger.info("거래 엔진 중지 완료")
-            return "트레이딩 상태: 중지됨"
+            return get_trading_status_text()  # 실제 상태 반영
         else:
             logger.warning("거래 엔진이 초기화되지 않았습니다.")
             return "트레이딩 상태: 엔진 미초기화"
     
-    return current_status
+    # 주기적 업데이트인 경우 (interval-component)
+    elif button_id == "interval-component":
+        # 항상 최신 상태 반영
+        return get_trading_status_text()
+    
+    # 다른 경우 (예상치 못한 트리거)
+    return get_trading_status_text()
 
 # 테마 전환 콜백
 @app.callback(
@@ -1066,6 +1077,19 @@ def update_styles_on_theme_change(theme_href):
     current_theme = 'LIGHT' if 'FLATLY' in theme_href else 'DARK'
     STYLES = get_current_styles()
     return STYLES['page']
+
+# 트레이딩 상태 정보를 가져오는 헬퍼 함수 추가
+def get_trading_status_text():
+    """현재 트레이딩 엔진의 실제 상태를 확인하여 UI에 표시할 텍스트를 반환합니다."""
+    if not TRADING_ENGINE:
+        return "트레이딩 상태: 엔진 미초기화"
+    
+    if TRADING_ENGINE.running and TRADING_ENGINE.is_trading_enabled:
+        return "트레이딩 상태: 실행 중"
+    elif TRADING_ENGINE.running and not TRADING_ENGINE.is_trading_enabled:
+        return "트레이딩 상태: 엔진 실행 중 (거래 비활성화)"
+    else:
+        return "트레이딩 상태: 중지됨"
 
 def run_dashboard():
     """대시보드를 실행합니다"""
