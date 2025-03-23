@@ -106,6 +106,10 @@ def main():
     # 거래 엔진 시작
     trading_engine.start_engine()
     
+    # 거래 기능 자동 활성화
+    trading_engine.is_trading_enabled = True
+    logger.info("거래 기능이 자동으로 활성화되었습니다. 거래 가능 상태: 활성화")
+    
     # 대시보드 초기화 및 실행
     logger.info("Starting dashboard")
     try:

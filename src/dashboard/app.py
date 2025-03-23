@@ -1019,7 +1019,13 @@ def control_trading(start_clicks, stop_clicks, n_intervals):
         if TRADING_ENGINE:
             logger.info("대시보드에서 거래 시작 버튼이 클릭되었습니다.")
             TRADING_ENGINE.start()
-            logger.info("거래 엔진 시작 완료")
+            
+            # 거래 활성화 상태 확인 및 강제 설정
+            if not TRADING_ENGINE.is_trading_enabled:
+                TRADING_ENGINE.is_trading_enabled = True
+                logger.info("거래 기능이 강제로 활성화되었습니다.")
+                
+            logger.info(f"거래 엔진 시작 완료. 거래 활성화 상태: {TRADING_ENGINE.is_trading_enabled}")
             return get_trading_status_text()  # 실제 상태 반영
         else:
             logger.warning("거래 엔진이 초기화되지 않았습니다.")
