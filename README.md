@@ -104,6 +104,24 @@ Run just the trading engine without the dashboard:
 python src/main.py --trading-only
 ```
 
+### Quick Commands Setup
+
+For easier control of the bot, you can set up quick commands:
+
+1. **Set up aliases**:
+   ```bash
+   ./scripts/setup_aliases.sh
+   ```
+
+2. **Apply the changes**:
+   ```bash
+   source ~/.zshrc
+   ```
+
+3. **Using quick commands**:
+   - Start the bot: `play`
+   - Stop the bot: `stop`
+
 ## Dashboard
 
 The dashboard is accessible at `http://localhost:8050` (or the host/port configured in `config.py`).
