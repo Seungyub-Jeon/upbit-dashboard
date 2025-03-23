@@ -1012,16 +1012,22 @@ def control_trading(start_clicks, stop_clicks, current_status):
     
     if button_id == "start-trading-btn":
         if TRADING_ENGINE:
+            logger.info("대시보드에서 거래 시작 버튼이 클릭되었습니다.")
             TRADING_ENGINE.start()
+            logger.info("거래 엔진 시작 완료")
             return "트레이딩 상태: 실행 중"
         else:
+            logger.warning("거래 엔진이 초기화되지 않았습니다.")
             return "트레이딩 상태: 엔진 미초기화"
     
     elif button_id == "stop-trading-btn":
         if TRADING_ENGINE:
+            logger.info("대시보드에서 거래 중지 버튼이 클릭되었습니다.")
             TRADING_ENGINE.stop()
+            logger.info("거래 엔진 중지 완료")
             return "트레이딩 상태: 중지됨"
         else:
+            logger.warning("거래 엔진이 초기화되지 않았습니다.")
             return "트레이딩 상태: 엔진 미초기화"
     
     return current_status

@@ -86,7 +86,7 @@ class TradingEngine:
             logger.info("트레이딩 시작: 전액 거래 모드로 실행")
             self.start_engine()
         else:
-            logger.info("이미 트레이딩이 실행 중입니다.")
+            logger.info(f"트레이딩 신호 처리 활성화: 엔진 상태={self.running}, 거래 허용={self.is_trading_enabled}")
             self.is_trading_enabled = True
     
     def stop(self):
