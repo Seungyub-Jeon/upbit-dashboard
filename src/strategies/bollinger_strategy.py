@@ -75,7 +75,8 @@ class BollingerStrategy(BaseStrategy):
         Generate trading signal based on Bollinger Bands
         
         Returns:
-            Signal: 1 for buy, -1 for sell, 0 for hold
+            Signal dictionary: {'action': 'BUY'/'SELL'/'HOLD', 'price': current_price, 'strategy': 'Bollinger Bands'}
+            or None if no signal
         """
         try:
             # Fetch latest data
@@ -83,7 +84,7 @@ class BollingerStrategy(BaseStrategy):
             
             # Calculate Bollinger Bands
             if not self.calculate_bollinger_bands():
-                return 0
+                return None
                 
             # Get the latest values
             if len(self.df) > 0:
@@ -95,17 +96,25 @@ class BollingerStrategy(BaseStrategy):
                 if latest_close < latest_lower_band:
                     logger.info(f"Bollinger Strategy: BUY signal for {self.market} "
                                 f"(Price: {latest_close}, Lower Band: {latest_lower_band:.2f})")
-                    return 1
+                    return {
+                        'action': 'BUY',
+                        'price': latest_close,
+                        'strategy': 'Bollinger Bands'
+                    }
                     
                 # Check for sell signal (price above upper band)
                 elif latest_close > latest_upper_band:
                     logger.info(f"Bollinger Strategy: SELL signal for {self.market} "
                                 f"(Price: {latest_close}, Upper Band: {latest_upper_band:.2f})")
-                    return -1
+                    return {
+                        'action': 'SELL',
+                        'price': latest_close,
+                        'strategy': 'Bollinger Bands'
+                    }
             
             # Hold by default
-            return 0
+            return None
             
         except Exception as e:
             logger.error(f"Error generating Bollinger Bands signal: {e}")
-            return 0
+            return None

@@ -62,7 +62,7 @@ class SMAStrategy(BaseStrategy):
         Generate trading signal based on SMA crossover
         
         Returns:
-            Signal: 1 for buy, -1 for sell, 0 for hold
+            dict: Dictionary containing action, price, and strategy name, or None for hold
         """
         try:
             # Fetch latest data
@@ -70,25 +70,34 @@ class SMAStrategy(BaseStrategy):
             
             # Calculate indicators
             if not self.calculate_indicators():
-                return 0
+                return None
                 
             # Get the latest signal
             if len(self.df) > 0:
                 latest_position = self.df['position'].iloc[-1]
+                latest_price = self.df['close'].iloc[-1]
                 
                 # Check for buy signal
                 if latest_position == 1:
                     logger.info(f"SMA Strategy: BUY signal for {self.market}")
-                    return 1
+                    return {
+                        'action': 'BUY',
+                        'price': latest_price,
+                        'strategy': 'SMA Crossover'
+                    }
                     
                 # Check for sell signal
                 elif latest_position == -1:
                     logger.info(f"SMA Strategy: SELL signal for {self.market}")
-                    return -1
+                    return {
+                        'action': 'SELL',
+                        'price': latest_price,
+                        'strategy': 'SMA Crossover'
+                    }
             
             # Hold by default
-            return 0
+            return None
             
         except Exception as e:
             logger.error(f"Error generating SMA signal: {e}")
-            return 0
+            return None

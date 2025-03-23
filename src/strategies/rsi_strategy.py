@@ -70,7 +70,7 @@ class RSIStrategy(BaseStrategy):
         Generate trading signal based on RSI values
         
         Returns:
-            Signal: 1 for buy, -1 for sell, 0 for hold
+            dict: Dictionary containing action, price, and strategy name, or None for hold
         """
         try:
             # Fetch latest data
@@ -78,25 +78,34 @@ class RSIStrategy(BaseStrategy):
             
             # Calculate RSI
             if not self.calculate_rsi():
-                return 0
+                return None
                 
             # Get the latest signal
             if len(self.df) > 0:
                 latest_rsi = self.df['rsi'].iloc[-1]
+                latest_price = self.df['close'].iloc[-1]
                 
                 # Check for oversold condition (buy)
                 if latest_rsi < self.oversold:
                     logger.info(f"RSI Strategy: BUY signal for {self.market} (RSI: {latest_rsi:.2f})")
-                    return 1
+                    return {
+                        'action': 'BUY',
+                        'price': latest_price,
+                        'strategy': 'RSI Oversold'
+                    }
                     
                 # Check for overbought condition (sell)
                 elif latest_rsi > self.overbought:
                     logger.info(f"RSI Strategy: SELL signal for {self.market} (RSI: {latest_rsi:.2f})")
-                    return -1
+                    return {
+                        'action': 'SELL',
+                        'price': latest_price,
+                        'strategy': 'RSI Overbought'
+                    }
             
             # Hold by default
-            return 0
+            return None
             
         except Exception as e:
             logger.error(f"Error generating RSI signal: {e}")
-            return 0
+            return None
