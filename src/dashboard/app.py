@@ -1378,7 +1378,7 @@ def update_strategy_info(n_intervals, n_clicks, theme_href):
         risk_management = {
             'profit_target': '5%',  # 익절 목표
             'stop_loss': '3%',       # 손절 기준
-            'max_position': '계정 잔액의 30%',  # 최대 포지션 크기
+            'max_position': '계정 잔액의 100%',  # 최대 포지션 크기
             'min_order': '5,000원',  # 최소 주문 금액
             'trading_on': TRADING_ENGINE.is_trading_enabled if TRADING_ENGINE else False
         }

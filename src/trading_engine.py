@@ -209,8 +209,8 @@ class TradingEngine:
                         logger.warning(f"Cannot BUY {market}: Insufficient KRW balance")
                         return
                     
-                    # 단기 트레이딩: 잔액의 30%만 사용 (비율 조절 가능)
-                    trade_ratio = 0.3
+                    # 단기 트레이딩: 잔액의 100% 사용
+                    trade_ratio = 1.0
                     
                     # 최소 금액 확인: 거래금액이 5000원 이상이어야 함
                     amount = min(balance_krw * trade_ratio, balance_krw * 0.9995)  # 수수료 고려
@@ -247,8 +247,8 @@ class TradingEngine:
                         logger.warning(f"Cannot BUY {market}: 잔액({balance_krw}원)이 최소 거래 금액({MIN_ORDER_AMOUNT}원)보다 적습니다.")
                         return
                     
-                    # 단기 트레이딩: 계산된 포지션의 최대 30%만 사용
-                    position_size = min(position_size * 0.3, position_size)
+                    # 단기 트레이딩: 계산된 포지션의 100% 사용
+                    position_size = min(position_size * 1.0, position_size)
                     
                     amount = min(position_size, balance_krw * 0.9995)
                     
