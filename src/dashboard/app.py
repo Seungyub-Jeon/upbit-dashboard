@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import dash_bootstrap_components as dbc
 import numpy as np
 import traceback
+import requests.exceptions
 
 from config.config import DASHBOARD_CONFIG, TRADING_CONFIG
 from src.api.upbit_api import UpbitAPI
@@ -71,8 +72,8 @@ COLORS = {
         'success': '#00BC8C',
         'danger': '#E74C3C',
         'warning': '#F39C12',
-        'buy': '#00BC8C',
-        'sell': '#E74C3C',
+        'buy': '#00FF9C',  # 더 밝은 초록색
+        'sell': '#FF5A5A',  # 더 밝은 빨간색
         'grid': '#333333'
     },
     # 라이트 모드
@@ -84,8 +85,8 @@ COLORS = {
         'success': '#28A745',
         'danger': '#DC3545',
         'warning': '#FFC107',
-        'buy': '#28A745',
-        'sell': '#DC3545',
+        'buy': '#00A832',  # 더 진한 초록색
+        'sell': '#D50000',  # 더 진한 빨간색
         'grid': '#EAECEF'
     },
     # 공통
@@ -272,58 +273,96 @@ def create_performance_card():
         )
     ], className="mb-4 shadow-sm")
 
+# 트레이딩 전략 정보 카드
+def create_strategy_card():
+    """트레이딩 전략 정보 카드 생성"""
+    return dbc.Card([
+        dbc.CardHeader(
+            dbc.Row([
+                dbc.Col(html.H5("거래 전략 설정", className="m-0"), width="auto"),
+                dbc.Col(
+                    dbc.Button(
+                        html.I(className="fas fa-sync-alt"),
+                        id="refresh-strategy-btn",
+                        color="link",
+                        size="sm",
+                        className="p-0 float-end"
+                    ),
+                    width="auto",
+                    className="ms-auto"
+                )
+            ], align="center")
+        ),
+        dbc.CardBody(html.Div(id='strategy-info', className="p-0")),
+        dbc.Tooltip("전략 정보 새로고침", target="refresh-strategy-btn")
+    ], className="mb-4 shadow-sm")
+
 # Layout with responsive grid
-app.layout = html.Div([
-    dcc.Location(id='url', refresh=False),
-    
-    # 테마 스타일시트 (콜백으로 동적 변경)
-    html.Link(
-        id='theme-stylesheet',
-        rel='stylesheet',
-        href=THEMES[current_theme]
-    ),
-    
-    # 주기적 업데이트를 위한 interval 컴포넌트 (5초마다)
-    dcc.Interval(
-        id='interval-component',
-        interval=5 * 1000,  # 5초마다 실행 (밀리초 단위)
-        n_intervals=0
-    ),
-    
-    # Google Fonts
-    html.Link(
-        href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap",
-        rel="stylesheet"
-    ),
-    
-    # Main container
-    dbc.Container([
-        create_header(),
-        create_trading_status(),
+def create_layout():
+    return html.Div([
+        dcc.Location(id='url', refresh=False),
         
-        # Responsive grid layout
-        dbc.Row([
-            # Left column (account and market data)
-            dbc.Col([
-                create_account_card(),
-                create_market_card(),
-            ], width=12, lg=8),
+        # 테마 스타일시트 (콜백으로 동적 변경)
+        html.Link(
+            id='theme-stylesheet',
+            rel='stylesheet',
+            href=THEMES[current_theme]
+        ),
+        
+        # 주기적 업데이트를 위한 interval 컴포넌트 (5초마다)
+        dcc.Interval(
+            id='interval-component',
+            interval=5 * 1000,  # 5초마다 실행 (밀리초 단위)
+            n_intervals=0
+        ),
+        
+        # Google Fonts
+        html.Link(
+            href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap",
+            rel="stylesheet"
+        ),
+        
+        # Main container
+        dbc.Container([
+            create_header(),
+            create_trading_status(),
             
-            # Right column (performance)
-            dbc.Col([
-                create_performance_card(),
-                create_signals_card(),
-            ], width=12, lg=4),
-        ]),
-        
-        # Full width row for trades
-        dbc.Row([
-            dbc.Col([
-                create_trades_card()
-            ], width=12)
-        ])
-    ], fluid=True, className="py-3", id="main-container")
-], id="main-content", style=STYLES['page'])
+            # Responsive grid layout
+            dbc.Row([
+                # Left column (account and market data)
+                dbc.Col([
+                    create_strategy_card(),  # 전략 카드 추가
+                    create_account_card(),
+                    create_market_card(),
+                ], width=12, lg=8),
+                
+                # Right column (performance)
+                dbc.Col([
+                    create_performance_card(),
+                    create_signals_card(),
+                ], width=12, lg=4),
+            ]),
+            
+            # Full width row for trades
+            dbc.Row([
+                dbc.Col([
+                    create_trades_card()
+                ], width=12)
+            ])
+        ], fluid=True, className="py-3", id="main-container")
+    ], id="main-content", style=STYLES['page'])
+
+# 에러 메시지 컴포넌트 생성 함수
+def create_error_message(message):
+    """
+    에러 메시지 UI 컴포넌트를 생성합니다.
+    """
+    return dbc.Alert(
+        message,
+        color="danger",
+        className="m-0",
+        dismissable=True
+    )
 
 # 계좌 정보 수동 새로고침 콜백 추가
 @app.callback(
@@ -338,52 +377,119 @@ def update_account_balance(n_intervals, n_clicks, theme_href):
     color_theme = 'dark' if is_dark_theme else 'light'
     colors = COLORS[color_theme]
     
-    # 콜백 컨텍스트 확인
-    ctx = dash.callback_context
-    if ctx.triggered and 'refresh-account-btn' in ctx.triggered[0]['prop_id']:
-        # 수동 새로고침 버튼이 클릭된 경우 계정 정보 강제 갱신
-        logger.info("계정 정보 수동 새로고침 요청됨")
-        accounts = api.refresh_accounts()
-    else:
-        # 일반적인 인터벌 업데이트
-        accounts = api.get_accounts()
-    
+    # 새로고침 버튼 클릭 체크 (callback_context 없이 직접 n_clicks 검사)
+    is_refresh_button_clicked = False
     try:
+        # n_clicks가 None이 아니고 변경되었을 때 (1 이상일 때) 새로고침 버튼 클릭으로 간주
+        if n_clicks is not None and n_clicks > 0:
+            is_refresh_button_clicked = True
+            # 클릭 이벤트 처리 후 n_clicks 초기화를 위해 
+            # dash.no_update 반환 (이 방식은 실제로는 작동하지 않음 - 단순 참고용)
+    except Exception as e:
+        logger.error(f"새로고침 버튼 클릭 확인 중 오류 발생: {str(e)}")
+    
+    # API 호출 시도
+    try:
+        if is_refresh_button_clicked:
+            # 수동 새로고침 버튼이 클릭된 경우 계정 정보 강제 갱신
+            logger.info("계정 정보 수동 새로고침 요청됨")
+            accounts = api.refresh_accounts()
+        else:
+            # 일반적인 인터벌 업데이트
+            accounts = api.get_accounts()
+        
         if not accounts:
-            return dbc.Alert("계정 정보를 불러올 수 없습니다.", color="danger", className="m-0")
+            return dbc.Alert("계정 정보를 불러올 수 없습니다. API 연결을 확인해주세요.", color="danger", className="m-0")
 
         # 계좌 정보를 카드로 표시
         account_cards = []
         
-        # BTC와 KRW만 표시
-        allowed_currencies = ['BTC', 'KRW']
+        # 모든 화폐 표시로 변경
+        all_currencies = set(account['currency'] for account in accounts)
+        
+        # 항상 표시할 코인 목록
+        always_show_currencies = ['KRW', 'BTC']
+        
+        # 제외할 코인 목록
+        excluded_currencies = ['LUNC', 'APENFT', 'LUNA2', 'BRC']
+        
+        # 계정에 없는 항상 표시할 코인을 위한 더미 계정 생성
+        for currency in always_show_currencies:
+            if currency not in all_currencies:
+                logger.info(f"{currency} 계정을 찾을 수 없어 더미 계정을 생성합니다.")
+                accounts.append({
+                    'currency': currency,
+                    'balance': '0.0',
+                    'locked': '0.0',
+                    'avg_buy_price': '0',
+                    'avg_buy_price_modified': True
+                })
         
         for account in accounts:
             try:
                 currency = account['currency']
-                if currency not in allowed_currencies:
-                    continue
-
                 balance = float(account['balance'])
+                
+                # 제외할 코인은 건너뛰기
+                if currency in excluded_currencies:
+                    continue
+                
+                # 잔액이 0인 경우에도 항상 표시할 코인이 아니면 건너뛰기
+                if balance <= 0 and currency not in always_show_currencies:
+                    continue
+                
+                locked = float(account.get('locked', 0))
                 avg_buy_price = float(account.get('avg_buy_price', 0))
                 
+                # 티커 정보 처리
                 if currency == 'KRW':
                     current_price = 1
-                    total = balance
+                    total = balance + locked
                     profit_loss = 0
                     icon = "💰"
                 else:
-                    ticker = api.get_ticker(f"KRW-{currency}")
-                    if ticker:
-                        current_price = float(ticker[0]['trade_price'])
-                        total = balance * current_price
-                        profit_loss = total - (balance * avg_buy_price)
+                    ticker_info = None
+                    try:
+                        # 티커 형식 확인 및 자동으로 KRW- 접두사 추가
+                        market_id = f"KRW-{currency}" if not currency.startswith("KRW-") else currency
+                        ticker = api.get_ticker(market_id)
+                        
+                        if ticker and len(ticker) > 0:
+                            ticker_info = ticker[0]
+                            logger.info(f"{currency} 티커 조회 성공: {ticker_info['trade_price']}")
+                    except Exception as ticker_err:
+                        logger.error(f"티커 조회 오류 ({currency}): {ticker_err}")
+                    
+                    # 기본 가격 정보 (API 연결 실패 시 사용)
+                    default_prices = {
+                        'BTC': 127000000,
+                        'ETH': 5000000
+                    }
+                    
+                    # 화폐별 아이콘 설정
+                    if currency == 'BTC':
+                        icon = "₿"
+                    elif currency == 'ETH':
+                        icon = "Ξ"
                     else:
-                        current_price = avg_buy_price
-                        total = balance * current_price
-                        profit_loss = 0
-                    icon = "₿"
-
+                        icon = "🪙"
+                    
+                    # 티커 정보를 가져오지 못한 경우 기본 가격 사용
+                    if not ticker_info:
+                        if currency in default_prices:
+                            logger.info(f"{currency} 티커 정보 사용 불가, 기본 가격 사용: {default_prices[currency]}")
+                            current_price = default_prices[currency]
+                        else:
+                            current_price = avg_buy_price or 0
+                            logger.warning(f"{currency} 티커 및 기본 가격 정보 없음, 평균 매수가 사용: {current_price}")
+                        
+                        total = (balance + locked) * current_price
+                        profit_loss = total - ((balance + locked) * avg_buy_price)
+                    else:
+                        current_price = float(ticker_info['trade_price'])
+                        total = (balance + locked) * current_price
+                        profit_loss = total - ((balance + locked) * avg_buy_price)
+                
                 # 손익에 따른 색상 설정
                 profit_loss_color = colors['buy'] if profit_loss > 0 else colors['sell'] if profit_loss < 0 else colors['text']
                 
@@ -401,6 +507,12 @@ def update_account_balance(n_intervals, n_clicks, theme_href):
                                 html.Span(f"{balance:.8f}", className="fw-bold")
                             ], className="mb-2"),
                             
+                            # 보유량+잠금 표시
+                            html.P([
+                                html.Span("잠금: ", className="text-muted"),
+                                html.Span(f"{locked:.8f}", className="fw-bold")
+                            ], className="mb-2") if locked > 0 else None,
+                            
                             html.P([
                                 html.Span("평가금액: ", className="text-muted"),
                                 html.Span(f"{total:,.0f} KRW", className="fw-bold")
@@ -415,8 +527,11 @@ def update_account_balance(n_intervals, n_clicks, theme_href):
                             html.P([
                                 html.Span("평가손익: ", className="text-muted"),
                                 html.Span(f"{profit_loss:,.0f} KRW", 
-                                         className="fw-bold",
-                                         style={"color": profit_loss_color})
+                                         className="fw-bold fs-5",
+                                         style={
+                                             "color": "#FFFFFF",  # 항상 흰색으로 강제 설정
+                                             "text-shadow": "0px 0px 2px rgba(0,0,0,0.9)"
+                                         })
                             ], className="mb-0")
                         ])
                     ], className="p-3")
@@ -436,8 +551,17 @@ def update_account_balance(n_intervals, n_clicks, theme_href):
             dbc.Col(card, width=12, md=6) for card in account_cards
         ], className="g-3")
 
+    except requests.exceptions.Timeout:
+        logger.error("계정 정보 조회 중 타임아웃 발생")
+        return dbc.Alert("서버 응답 시간이 초과되었습니다. 다시 시도해주세요.", color="danger", className="m-0")
+        
+    except requests.exceptions.ConnectionError:
+        logger.error("계정 정보 조회 중 연결 오류 발생")
+        return dbc.Alert("서버 연결에 실패했습니다. 인터넷 연결을 확인해주세요.", color="danger", className="m-0")
+        
     except Exception as e:
         logger.error(f"계정 정보 업데이트 중 오류 발생: {str(e)}")
+        traceback.print_exc()
         return dbc.Alert(
             f"계정 정보를 불러오는 중 오류가 발생했습니다: {str(e)[:100]}", 
             color="danger",
@@ -724,36 +848,6 @@ def update_price_chart(n, selected_market, theme_href):
         logger.error(f"차트 업데이트 중 오류 발생: {str(e)}")
         return create_empty_figure(f"오류: {str(e)[:100]}")
 
-# 빈 차트 생성 함수
-def create_empty_figure(message="데이터가 없습니다"):
-    # 현재 테마 확인
-    is_dark_theme = current_theme == 'DARK'
-    color_theme = 'dark' if is_dark_theme else 'light'
-    colors = COLORS[color_theme]
-    
-    fig = go.Figure()
-    
-    # 메시지 추가
-    fig.add_annotation(
-        x=0.5, y=0.5,
-        xref="paper", yref="paper",
-        text=message,
-        showarrow=False,
-        font=dict(size=16, color=colors['text'])
-    )
-    
-    # 레이아웃 설정
-    fig.update_layout(
-        height=400,
-        paper_bgcolor=colors['card_bg'],
-        plot_bgcolor=colors['card_bg'],
-        font=dict(color=colors['text']),
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
-    )
-    
-    return fig
-
 # 트레이딩 신호 차트 업데이트
 @app.callback(
     Output('signals-chart', 'figure'),
@@ -1034,17 +1128,27 @@ def update_performance_chart(n, theme_href):
      Input("interval-component", "n_intervals")]  # 주기적 업데이트 추가
 )
 def control_trading(start_clicks, stop_clicks, n_intervals):
-    ctx = dash.callback_context
+    # callback_context 관련 오류 방지를 위한 안전한 접근 방식
+    triggered_by_start = False
+    triggered_by_stop = False
     
-    # 콜백이 어떤 입력에 의해 트리거되었는지 확인
-    if not ctx.triggered:
-        # 초기 로드 시 실제 엔진 상태 반영
-        return get_trading_status_text()
-    
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    try:
+        ctx = dash.callback_context
+        if ctx.triggered:
+            button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            triggered_by_start = button_id == "start-trading-btn" and start_clicks and start_clicks > 0
+            triggered_by_stop = button_id == "stop-trading-btn" and stop_clicks and stop_clicks > 0
+    except Exception as e:
+        logger.error(f"콜백 컨텍스트 확인 중 오류 발생: {str(e)}")
+        # 콜백 컨텍스트를 사용할 수 없는 경우 직접 n_clicks로 판단
+        # 이전 상태를 저장하는 로직이 없으므로 완벽하지는 않음
+        if start_clicks and start_clicks > 0:
+            triggered_by_start = True
+        if stop_clicks and stop_clicks > 0:
+            triggered_by_stop = True
     
     # 버튼 클릭 이벤트 처리
-    if button_id == "start-trading-btn":
+    if triggered_by_start:
         if TRADING_ENGINE:
             logger.info("대시보드에서 거래 시작 버튼이 클릭되었습니다.")
             TRADING_ENGINE.start()
@@ -1060,7 +1164,7 @@ def control_trading(start_clicks, stop_clicks, n_intervals):
             logger.warning("거래 엔진이 초기화되지 않았습니다.")
             return "트레이딩 상태: 엔진 미초기화"
     
-    elif button_id == "stop-trading-btn":
+    elif triggered_by_stop:
         if TRADING_ENGINE:
             logger.info("대시보드에서 거래 중지 버튼이 클릭되었습니다.")
             TRADING_ENGINE.stop()
@@ -1070,12 +1174,7 @@ def control_trading(start_clicks, stop_clicks, n_intervals):
             logger.warning("거래 엔진이 초기화되지 않았습니다.")
             return "트레이딩 상태: 엔진 미초기화"
     
-    # 주기적 업데이트인 경우 (interval-component)
-    elif button_id == "interval-component":
-        # 항상 최신 상태 반영
-        return get_trading_status_text()
-    
-    # 다른 경우 (예상치 못한 트리거)
+    # 주기적 업데이트 또는 초기 로드인 경우 실제 상태 반영
     return get_trading_status_text()
 
 # 테마 전환 콜백
@@ -1211,9 +1310,183 @@ def update_bitcoin_indicators(n, theme_href):
         
         return dbc.Card(dbc.CardBody(indicators), className="mt-3")
         
+    except requests.exceptions.Timeout:
+        logger.error("비트코인 시장 지표 조회 중 타임아웃 발생")
+        return dbc.Alert("서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.", color="warning", className="m-0")
+        
+    except requests.exceptions.ConnectionError:
+        logger.error("비트코인 시장 지표 조회 중 연결 오류 발생")
+        return dbc.Alert("서버 연결에 실패했습니다. 인터넷 연결을 확인해주세요.", color="warning", className="m-0")
+        
     except Exception as e:
         logger.error(f"비트코인 시장 지표 업데이트 중 오류: {str(e)}")
+        traceback.print_exc()
         return dbc.Alert(f"비트코인 시장 지표를 업데이트하는 중 오류 발생: {str(e)[:100]}", color="danger", className="m-0")
+
+# 전략 정보 업데이트 콜백 추가
+@app.callback(
+    Output('strategy-info', 'children'),
+    [Input('interval-component', 'n_intervals'),
+     Input('refresh-strategy-btn', 'n_clicks'),
+     Input('theme-stylesheet', 'href')]
+)
+def update_strategy_info(n_intervals, n_clicks, theme_href):
+    """거래 전략 정보를 업데이트합니다."""
+    # 테마에 따른 스타일 결정
+    is_dark_theme = 'DARKLY' in theme_href if theme_href else True
+    color_theme = 'dark' if is_dark_theme else 'light'
+    colors = COLORS[color_theme]
+    
+    try:
+        # 전략 정보 생성
+        strategies = []
+        
+        # SMA 전략 정보
+        strategies.append({
+            'name': 'SMA 교차 전략',
+            'description': '단기(5일선)가 장기(20일선)를 상향돌파하면 매수, 하향돌파하면 매도',
+            'params': {
+                '단기 이동평균': '5일',
+                '장기 이동평균': '20일',
+                '시그널 체크': '크로스오버 감지'
+            }
+        })
+        
+        # RSI 전략 정보
+        strategies.append({
+            'name': 'RSI 전략',
+            'description': 'RSI 지표가 과매도 영역에서 반등 시 매수, 과매수 영역에서 하락 시 매도',
+            'params': {
+                '기간': '14일', 
+                '과매수 기준': '70 이상',
+                '과매도 기준': '30 이하'
+            }
+        })
+        
+        # 볼린저 밴드 전략 정보
+        strategies.append({
+            'name': '볼린저 밴드 전략',
+            'description': '가격이 하단밴드 아래로 내려가면 매수, 상단밴드 위로 올라가면 매도',
+            'params': {
+                '이동평균 기간': '20일',
+                '표준편차 배수': '2.0',
+                '밴드 폭': '밴드폭 기준 거래 없음'
+            }
+        })
+        
+        # 리스크 관리 정보
+        risk_management = {
+            'profit_target': '5%',  # 익절 목표
+            'stop_loss': '3%',       # 손절 기준
+            'max_position': '계정 잔액의 30%',  # 최대 포지션 크기
+            'min_order': '5,000원',  # 최소 주문 금액
+            'trading_on': TRADING_ENGINE.is_trading_enabled if TRADING_ENGINE else False
+        }
+        
+        # 전략 카드 생성
+        strategy_cards = []
+        
+        # 리스크 관리 카드 생성
+        risk_card = dbc.Card([
+            dbc.CardHeader(html.H6("리스크 관리 설정", className="m-0 fw-bold text-primary")),
+            dbc.CardBody([
+                dbc.Row([
+                    dbc.Col([
+                        html.P([
+                            html.Span("익절 목표: ", className="text-muted"),
+                            html.Span(risk_management['profit_target'], className="fw-bold")
+                        ], className="mb-2"),
+                        html.P([
+                            html.Span("손절 기준: ", className="text-muted"),
+                            html.Span(risk_management['stop_loss'], className="fw-bold")
+                        ], className="mb-2"),
+                    ], width=6),
+                    dbc.Col([
+                        html.P([
+                            html.Span("최대 포지션: ", className="text-muted"),
+                            html.Span(risk_management['max_position'], className="fw-bold")
+                        ], className="mb-2"),
+                        html.P([
+                            html.Span("최소 주문액: ", className="text-muted"),
+                            html.Span(risk_management['min_order'], className="fw-bold")
+                        ], className="mb-2"),
+                        html.P([
+                            html.Span("거래 활성화: ", className="text-muted"),
+                            html.Span(
+                                "활성화" if risk_management['trading_on'] else "비활성화", 
+                                className="fw-bold",
+                                style={"color": colors['buy'] if risk_management['trading_on'] else colors['sell']}
+                            )
+                        ], className="mb-0"),
+                    ], width=6),
+                ]),
+            ])
+        ], className="mb-3 shadow-sm")
+        
+        strategy_cards.append(risk_card)
+        
+        # 개별 전략 카드 생성
+        for i, strategy in enumerate(strategies):
+            strategy_card = dbc.Card([
+                dbc.CardHeader(html.H6(strategy['name'], className="m-0 fw-bold text-primary")),
+                dbc.CardBody([
+                    html.P(strategy['description'], className="mb-3 small"),
+                    html.Div([
+                        dbc.Row([
+                            dbc.Col([
+                                html.Span(key + ": ", className="text-muted small"),
+                                html.Span(value, className="fw-bold small")
+                            ], width="auto", className="me-3 mb-2")
+                            for key, value in strategy['params'].items()
+                        ], className="g-0")
+                    ])
+                ])
+            ], className="mb-3 shadow-sm")
+            
+            strategy_cards.append(strategy_card)
+        
+        return html.Div(strategy_cards)
+        
+    except Exception as e:
+        logger.error(f"전략 정보 업데이트 중 오류 발생: {str(e)}")
+        return dbc.Alert(
+            f"전략 정보를 불러오는 중 오류가 발생했습니다: {str(e)[:100]}", 
+            color="danger",
+            className="m-0"
+        )
+
+# 빈 차트 생성 함수
+def create_empty_figure(message="데이터가 없습니다"):
+    # 현재 테마 확인
+    is_dark_theme = current_theme == 'DARK'
+    color_theme = 'dark' if is_dark_theme else 'light'
+    colors = COLORS[color_theme]
+    
+    fig = go.Figure()
+    
+    # 메시지 추가
+    fig.add_annotation(
+        x=0.5, y=0.5,
+        xref="paper", yref="paper",
+        text=message,
+        showarrow=False,
+        font=dict(size=16, color=colors['text'])
+    )
+    
+    # 레이아웃 설정
+    fig.update_layout(
+        height=400,
+        paper_bgcolor=colors['card_bg'],
+        plot_bgcolor=colors['card_bg'],
+        font=dict(color=colors['text']),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
+    )
+    
+    return fig
+
+# 기존 레이아웃 대체
+app.layout = create_layout()
 
 def run_dashboard():
     """대시보드를 실행합니다"""

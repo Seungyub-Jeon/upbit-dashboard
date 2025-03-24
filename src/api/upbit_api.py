@@ -19,6 +19,8 @@ class UpbitAPI:
         self.secret_key = os.getenv('UPBIT_SECRET_KEY')
         self.base_url = 'https://api.upbit.com/v1'
         self.session = requests.Session()
+        # 요청 타임아웃 설정 (초)
+        self.timeout = 10
         self.logger = logging.getLogger(__name__)
         
         if not self.access_key or not self.secret_key:
@@ -152,40 +154,42 @@ class UpbitAPI:
         Get current ticker information for a market
         """
         try:
-            if market != 'KRW-BTC':
-                return None
-                
-            url = f"{self.base_url}/ticker"
             params = {'markets': market}
-            response = self.session.get(url, params=params)
+            url = f"{self.base_url}/ticker"
+            headers = {"Authorization": f"Bearer {self._get_token(params)}"}
+            
+            response = self.session.get(url, params=params, headers=headers, timeout=self.timeout)
             
             if response.status_code != 200:
-                logger.error(f"현재가 조회 실패: {response.status_code}")
+                logger.error(f"티커 정보 조회 실패: {response.status_code}")
                 logger.error(f"에러 메시지: {response.text}")
                 return None
                 
             return response.json()
             
+        except requests.exceptions.Timeout:
+            logger.error(f"티커 정보 조회 중 타임아웃 발생: {market}")
+            return None
+        except requests.exceptions.ConnectionError:
+            logger.error(f"티커 정보 조회 중 연결 오류 발생: {market}")
+            return None
         except Exception as e:
-            logger.error(f"현재가 조회 중 에러 발생: {str(e)}")
+            logger.error(f"티커 정보 조회 중 오류 발생: {str(e)}")
             return None
     
     def get_current_price(self, market):
         """
-        현재 시장 가격을 반환합니다.
+        현재 시장 가격을 조회합니다.
+        :param market: 마켓 ID (예: KRW-BTC)
+        :return: 현재 가격 (숫자) 또는 조회 실패 시 None
         """
         try:
             ticker = self.get_ticker(market)
-            if not ticker or len(ticker) == 0:
-                logger.error(f"{market}의 현재가 정보를 가져올 수 없습니다.")
-                return None
-                
-            current_price = ticker[0].get('trade_price')
-            logger.info(f"{market} 현재가: {current_price}")
-            return current_price
-            
+            if ticker and len(ticker) > 0:
+                return float(ticker[0]['trade_price'])
+            return None
         except Exception as e:
-            logger.error(f"현재가 조회 중 에러 발생: {str(e)}")
+            logger.error(f"{market} 현재가 조회 중 오류 발생: {str(e)}")
             return None
     
     def get_orderbook(self, markets):

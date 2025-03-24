@@ -197,14 +197,34 @@ class TradingEngine:
                 if self.full_amount_mode:
                     # 전체 KRW 잔고의 99.95%를 사용 (수수료 고려)
                     balance_krw = self.api.get_balance('KRW')
+                    
+                    # 최소 거래 금액 확인 (5,000원)
+                    MIN_ORDER_AMOUNT = 5000
+                    
+                    if balance_krw < MIN_ORDER_AMOUNT:
+                        logger.warning(f"Cannot BUY {market}: 잔액({balance_krw}원)이 최소 거래 금액({MIN_ORDER_AMOUNT}원)보다 적습니다.")
+                        return
+                    
                     if balance_krw <= 0:
                         logger.warning(f"Cannot BUY {market}: Insufficient KRW balance")
                         return
                     
-                    amount = balance_krw * 0.9995  # 수수료 고려
+                    # 단기 트레이딩: 잔액의 30%만 사용 (비율 조절 가능)
+                    trade_ratio = 0.3
+                    
+                    # 최소 금액 확인: 거래금액이 5000원 이상이어야 함
+                    amount = min(balance_krw * trade_ratio, balance_krw * 0.9995)  # 수수료 고려
+                    
+                    if amount < MIN_ORDER_AMOUNT:
+                        amount = MIN_ORDER_AMOUNT  # 최소 5,000원
+                    
+                    # 주문 수량 계산
                     volume = amount / price
                     
-                    logger.info(f"전액 거래 모드: {market} 매수 - {balance_krw}원 (수량: {volume})")
+                    # 소수점 8자리까지만 사용 (업비트 제한)
+                    volume = round(volume, 8)
+                    
+                    logger.info(f"단기 트레이딩 모드: {market} 매수 - {amount}원 (수량: {volume}, 잔액: {balance_krw}원)")
                     
                     # 주문 실행
                     order = self.api.place_order(market, 'bid', volume, price, 'limit')
@@ -217,10 +237,29 @@ class TradingEngine:
                         logger.warning(f"Calculated position size for {market} is zero")
                         return
                     
+                    # 최소 거래 금액 확인 (5,000원)
+                    MIN_ORDER_AMOUNT = 5000
+                    
                     # Calculate volume from position size
                     balance_krw = self.api.get_balance('KRW')
+                    
+                    if balance_krw < MIN_ORDER_AMOUNT:
+                        logger.warning(f"Cannot BUY {market}: 잔액({balance_krw}원)이 최소 거래 금액({MIN_ORDER_AMOUNT}원)보다 적습니다.")
+                        return
+                    
+                    # 단기 트레이딩: 계산된 포지션의 최대 30%만 사용
+                    position_size = min(position_size * 0.3, position_size)
+                    
                     amount = min(position_size, balance_krw * 0.9995)
+                    
+                    # 최소 금액 확인
+                    if amount < MIN_ORDER_AMOUNT:
+                        amount = MIN_ORDER_AMOUNT
+                    
                     volume = amount / price
+                    
+                    # 소수점 8자리까지만 사용 (업비트 제한)
+                    volume = round(volume, 8)
                     
                     logger.info(f"Placing BUY order for {market}: {volume} at {price} (Signal from {strategy_name})")
                     order = self.api.place_order(market, 'bid', volume, price, 'limit')
