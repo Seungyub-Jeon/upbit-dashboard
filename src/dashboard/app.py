@@ -206,15 +206,33 @@ def create_trading_status():
 
 # Account balance card
 def create_account_card():
+    """계좌 정보 카드 생성"""
     return dbc.Card([
-        dbc.CardHeader(html.H3("계좌 잔액", className="card-title h5 text-primary fw-bold")),
-        dbc.CardBody(id="account-balance", className="px-0")
+        dbc.CardHeader(
+            dbc.Row([
+                dbc.Col(html.H5("계좌 정보", className="m-0"), width="auto"),
+                dbc.Col(
+                    dbc.Button(
+                        html.I(className="fas fa-sync-alt"),
+                        id="refresh-account-btn",
+                        color="link",
+                        size="sm",
+                        className="p-0 float-end"
+                    ),
+                    width="auto",
+                    className="ms-auto"
+                )
+            ], align="center")
+        ),
+        dbc.CardBody(html.Div(id='account-balance', className="p-0")),
+        dbc.Tooltip("계좌 정보 새로고침", target="refresh-account-btn")
     ], className="mb-4 shadow-sm")
 
 # Market data card with candle chart
 def create_market_card():
+    """시장 데이터 카드 생성"""
     return dbc.Card([
-        dbc.CardHeader(html.H3("시장 데이터", className="card-title h5 text-primary fw-bold")),
+        dbc.CardHeader(html.H5("시장 데이터", className="m-0")),
         dbc.CardBody([
             dcc.Dropdown(
                 id='market-dropdown',
@@ -224,7 +242,9 @@ def create_market_card():
                 className="mb-3"
             ),
             dcc.Graph(id='price-chart', config={'displayModeBar': True, 'scrollZoom': True})
-        ])
+        ], id='market-data'),
+        # 비트코인 지표 영역 추가
+        dbc.CardFooter(html.Div(id='bitcoin-indicators', className="p-0"))
     ], className="mb-4 shadow-sm")
 
 # Trading signals card
@@ -305,21 +325,30 @@ app.layout = html.Div([
     ], fluid=True, className="py-3", id="main-container")
 ], id="main-content", style=STYLES['page'])
 
-# 계좌 정보 업데이트
+# 계좌 정보 수동 새로고침 콜백 추가
 @app.callback(
     Output('account-balance', 'children'),
     [Input('interval-component', 'n_intervals'),
+     Input('refresh-account-btn', 'n_clicks'),
      Input('theme-stylesheet', 'href')]
 )
-def update_account_balance(n, theme_href):
+def update_account_balance(n_intervals, n_clicks, theme_href):
     # 테마에 따른 스타일 결정
     is_dark_theme = 'DARKLY' in theme_href if theme_href else True
     color_theme = 'dark' if is_dark_theme else 'light'
     colors = COLORS[color_theme]
     
-    try:
+    # 콜백 컨텍스트 확인
+    ctx = dash.callback_context
+    if ctx.triggered and 'refresh-account-btn' in ctx.triggered[0]['prop_id']:
+        # 수동 새로고침 버튼이 클릭된 경우 계정 정보 강제 갱신
+        logger.info("계정 정보 수동 새로고침 요청됨")
+        accounts = api.refresh_accounts()
+    else:
+        # 일반적인 인터벌 업데이트
         accounts = api.get_accounts()
-        
+    
+    try:
         if not accounts:
             return dbc.Alert("계정 정보를 불러올 수 없습니다.", color="danger", className="m-0")
 
@@ -1096,6 +1125,95 @@ def get_trading_status_text():
         return "트레이딩 상태: 엔진 실행 중 (거래 비활성화)"
     else:
         return "트레이딩 상태: 중지됨"
+
+# 비트코인 시장 지표 업데이트 콜백 추가
+@app.callback(
+    Output('bitcoin-indicators', 'children'),
+    [Input('interval-component', 'n_intervals'),
+     Input('theme-stylesheet', 'href')]
+)
+def update_bitcoin_indicators(n, theme_href):
+    """비트코인 시장 지표를 업데이트합니다."""
+    # 테마에 따른 스타일 결정
+    is_dark_theme = 'DARKLY' in theme_href if theme_href else True
+    color_theme = 'dark' if is_dark_theme else 'light'
+    colors = COLORS[color_theme]
+    
+    try:
+        # 비트코인 티커 정보 조회
+        ticker = api.get_ticker('KRW-BTC')
+        
+        if not ticker or len(ticker) == 0:
+            return dbc.Alert("비트코인 시장 지표를 불러올 수 없습니다.", color="warning", className="m-0")
+        
+        ticker_data = ticker[0]
+        
+        # 시장 지표 추출
+        current_price = ticker_data.get('trade_price', 0)
+        prev_closing_price = ticker_data.get('prev_closing_price', 0)
+        high_price = ticker_data.get('high_price', 0)
+        low_price = ticker_data.get('low_price', 0)
+        acc_trade_volume_24h = ticker_data.get('acc_trade_volume_24h', 0)
+        acc_trade_price_24h = ticker_data.get('acc_trade_price_24h', 0)
+        
+        # 가격 변동 계산
+        price_change = current_price - prev_closing_price
+        price_change_percent = (price_change / prev_closing_price * 100) if prev_closing_price else 0
+        
+        # 상승/하락에 따른 색상 설정
+        price_color = colors['buy'] if price_change >= 0 else colors['sell']
+        
+        # 지표 표시
+        indicators = [
+            dbc.Row([
+                dbc.Col([
+                    html.H5("비트코인 시장 지표", className="mb-3"),
+                    
+                    # 현재가와 변동률
+                    dbc.Row([
+                        dbc.Col([
+                            html.P("현재가", className="text-muted mb-1"),
+                            html.H3([
+                                f"{current_price:,.0f} KRW ",
+                                html.Small(
+                                    f"({price_change_percent:+.2f}%)",
+                                    style={"color": price_color}
+                                )
+                            ], className="mb-3")
+                        ], width=12)
+                    ]),
+                    
+                    # 주요 지표 (고가, 저가, 거래량)
+                    dbc.Row([
+                        dbc.Col([
+                            html.P("고가", className="text-muted mb-1"),
+                            html.H6(f"{high_price:,.0f} KRW", className="mb-3")
+                        ], width=6),
+                        dbc.Col([
+                            html.P("저가", className="text-muted mb-1"),
+                            html.H6(f"{low_price:,.0f} KRW", className="mb-3")
+                        ], width=6),
+                    ]),
+                    
+                    dbc.Row([
+                        dbc.Col([
+                            html.P("24시간 거래량", className="text-muted mb-1"),
+                            html.H6(f"{acc_trade_volume_24h:.4f} BTC", className="mb-3")
+                        ], width=6),
+                        dbc.Col([
+                            html.P("24시간 거래대금", className="text-muted mb-1"),
+                            html.H6(f"{acc_trade_price_24h/1000000:,.2f} 백만원", className="mb-3")
+                        ], width=6),
+                    ]),
+                ], width=12)
+            ])
+        ]
+        
+        return dbc.Card(dbc.CardBody(indicators), className="mt-3")
+        
+    except Exception as e:
+        logger.error(f"비트코인 시장 지표 업데이트 중 오류: {str(e)}")
+        return dbc.Alert(f"비트코인 시장 지표를 업데이트하는 중 오류 발생: {str(e)[:100]}", color="danger", className="m-0")
 
 def run_dashboard():
     """대시보드를 실행합니다"""

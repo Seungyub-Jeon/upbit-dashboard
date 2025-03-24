@@ -111,6 +111,35 @@ class UpbitAPI:
             return float(account['balance'])
         return 0.0
     
+    def refresh_accounts(self):
+        """
+        계정 정보를 새로 가져와서 캐시를 갱신합니다.
+        주로 대시보드와 실제 계정 정보의 동기화를 위해 사용됩니다.
+        """
+        try:
+            # JWT 토큰 생성 및 계정 정보 요청
+            jwt_token = self._get_token({})
+            headers = {"Authorization": f"Bearer {jwt_token}"}
+            
+            # 캐시 만료를 방지하기 위해 no-cache 헤더 추가
+            headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            headers["Pragma"] = "no-cache"
+            
+            response = self.session.get(f"{self.base_url}/accounts", headers=headers)
+            
+            if response.status_code != 200:
+                logger.error(f"계정 정보 새로고침 실패: {response.status_code}")
+                logger.error(f"에러 메시지: {response.text}")
+                return None
+                
+            accounts = response.json()
+            logger.info(f"계정 정보가 성공적으로 새로고침되었습니다: {len(accounts)}개 계정")
+            return accounts
+            
+        except Exception as e:
+            logger.error(f"계정 정보 새로고침 중 에러 발생: {str(e)}")
+            return None
+    
     # Market endpoints
     def get_markets(self):
         """
