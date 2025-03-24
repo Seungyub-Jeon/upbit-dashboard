@@ -63,12 +63,12 @@ def main():
     # 리스크 매니저 초기화
     risk_manager = RiskManager(api_client)
     
-    # 거래 엔진 초기화
+    # 거래 엔진 초기화 (3분 간격으로 변경)
     trading_engine = TradingEngine(
         TRADING_CONFIG.get('markets', ['KRW-BTC']),
         api_client,
         risk_manager,
-        TRADING_CONFIG.get('interval_minutes', 5)
+        TRADING_CONFIG.get('interval_minutes', 3)  # 5분에서 3분으로 변경
     )
     
     # 대시보드 모듈에 트레이딩 엔진 연결
@@ -78,27 +78,27 @@ def main():
     
     # 전략 등록
     for market in TRADING_CONFIG.get('markets', ['KRW-BTC']):
-        # SMA 전략 초기화 및 등록
+        # SMA 전략 초기화 및 등록 (더 민감하게 조정)
         sma_config = {
-            'short_window': TRADING_CONFIG.get('sma_short_window', 5),
-            'long_window': TRADING_CONFIG.get('sma_long_window', 20)
+            'short_window': TRADING_CONFIG.get('sma_short_window', 4),  # 5에서 4로 변경
+            'long_window': TRADING_CONFIG.get('sma_long_window', 15)   # 20에서 15로 변경
         }
         sma_strategy = SMAStrategy(api_client, market, sma_config)
         trading_engine.register_strategy(sma_strategy)
         
-        # RSI 전략 초기화 및 등록
+        # RSI 전략 초기화 및 등록 (기준치 조정)
         rsi_config = {
-            'period': TRADING_CONFIG.get('rsi_period', 14),
-            'overbought': TRADING_CONFIG.get('rsi_overbought', 70),
-            'oversold': TRADING_CONFIG.get('rsi_oversold', 30)
+            'period': TRADING_CONFIG.get('rsi_period', 10),     # 14에서 10으로 변경
+            'overbought': TRADING_CONFIG.get('rsi_overbought', 75),  # 70에서 75로 변경
+            'oversold': TRADING_CONFIG.get('rsi_oversold', 25)   # 30에서 25로 변경
         }
         rsi_strategy = RSIStrategy(api_client, market, rsi_config)
         trading_engine.register_strategy(rsi_strategy)
         
-        # 볼린저 밴드 전략 초기화 및 등록
+        # 볼린저 밴드 전략 초기화 및 등록 (기간 및 표준편차 조정)
         bollinger_config = {
-            'period': TRADING_CONFIG.get('bollinger_period', 20),
-            'std_dev': TRADING_CONFIG.get('bollinger_std', 2)
+            'period': TRADING_CONFIG.get('bollinger_period', 15),  # 20에서 15로 변경
+            'std_dev': TRADING_CONFIG.get('bollinger_std', 2.2)    # 2.0에서 2.2로 변경
         }
         bollinger_strategy = BollingerStrategy(api_client, market, bollinger_config)
         trading_engine.register_strategy(bollinger_strategy)

@@ -449,3 +449,22 @@ class UpbitAPI:
         except Exception as e:
             logger.error(f"주문 내역 조회 중 오류 발생: {str(e)}")
             return []
+
+    def get_avg_buy_price(self, currency):
+        """
+        특정 화폐의 평균 매수가격을 조회합니다.
+        :param currency: 화폐 코드 (예: BTC)
+        :return: 평균 매수가격 (숫자) 또는 조회 실패 시 None
+        """
+        try:
+            accounts = self.get_accounts()
+            for account in accounts:
+                if account['currency'] == currency:
+                    if 'avg_buy_price' in account:
+                        return float(account['avg_buy_price'])
+            
+            logger.warning(f"{currency}의 평균 매수가를 찾을 수 없습니다.")
+            return None
+        except Exception as e:
+            logger.error(f"{currency} 평균 매수가 조회 중 오류 발생: {str(e)}")
+            return None
