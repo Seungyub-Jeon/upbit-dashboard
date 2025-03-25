@@ -20,6 +20,42 @@ from src.strategies.rsi_strategy import RSIStrategy
 from src.strategies.bollinger_strategy import BollingerStrategy
 from src.dashboard.app import run_dashboard, TRADING_ENGINE
 
+# 전략 파라미터 설정
+STRATEGY_PARAMS = {
+    'sma': {
+        'short_window': 2,  # 3일에서 2일로 단축
+        'long_window': 5,   # 10일에서 5일로 단축
+        'volume_threshold': 1.5  # 거래량 임계값 증가
+    },
+    'rsi': {
+        'period': 5,        # 8일에서 5일로 단축
+        'overbought': 85,   # 과매수 기준 상향
+        'oversold': 15,     # 과매도 기준 하향
+        'volume_threshold': 1.5
+    },
+    'bollinger': {
+        'period': 5,        # 10일에서 5일로 단축
+        'std_dev': 3.0,     # 2.5에서 3.0으로 증가
+        'volume_threshold': 1.5
+    }
+}
+
+# 리스크 관리 파라미터
+RISK_PARAMS = {
+    'max_position_size': 0.3,  # 최대 포지션 크기 (계좌의 30%)
+    'min_order_amount': 5000,  # 최소 주문 금액
+    'stop_loss': {
+        'default': 0.8,    # -1.0%에서 -0.8%로 상향
+        'strong_sell': 0.5,  # -0.8%에서 -0.5%로 상향
+        'extreme_sell': 0.3  # -0.5%에서 -0.3%로 상향
+    },
+    'take_profit': {
+        'default': 2.5,    # 2.0%에서 2.5%로 상향
+        'strong_sell': 2.0,  # 1.5%에서 2.0%로 상향
+        'extreme_sell': 1.5  # 1.0%에서 1.5%로 상향
+    }
+}
+
 # 로깅 설정
 def setup_logging():
     # 로그 디렉토리 생성
@@ -79,27 +115,17 @@ def main():
     # 전략 등록
     for market in TRADING_CONFIG.get('markets', ['KRW-BTC']):
         # SMA 전략 초기화 및 등록 (더 민감하게 조정)
-        sma_config = {
-            'short_window': TRADING_CONFIG.get('sma_short_window', 4),  # 5에서 4로 변경
-            'long_window': TRADING_CONFIG.get('sma_long_window', 15)   # 20에서 15로 변경
-        }
+        sma_config = STRATEGY_PARAMS['sma']
         sma_strategy = SMAStrategy(api_client, market, sma_config)
         trading_engine.register_strategy(sma_strategy)
         
         # RSI 전략 초기화 및 등록 (기준치 조정)
-        rsi_config = {
-            'period': TRADING_CONFIG.get('rsi_period', 10),     # 14에서 10으로 변경
-            'overbought': TRADING_CONFIG.get('rsi_overbought', 75),  # 70에서 75로 변경
-            'oversold': TRADING_CONFIG.get('rsi_oversold', 25)   # 30에서 25로 변경
-        }
+        rsi_config = STRATEGY_PARAMS['rsi']
         rsi_strategy = RSIStrategy(api_client, market, rsi_config)
         trading_engine.register_strategy(rsi_strategy)
         
         # 볼린저 밴드 전략 초기화 및 등록 (기간 및 표준편차 조정)
-        bollinger_config = {
-            'period': TRADING_CONFIG.get('bollinger_period', 15),  # 20에서 15로 변경
-            'std_dev': TRADING_CONFIG.get('bollinger_std', 2.2)    # 2.0에서 2.2로 변경
-        }
+        bollinger_config = STRATEGY_PARAMS['bollinger']
         bollinger_strategy = BollingerStrategy(api_client, market, bollinger_config)
         trading_engine.register_strategy(bollinger_strategy)
     

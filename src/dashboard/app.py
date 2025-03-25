@@ -233,18 +233,33 @@ def create_account_card():
 def create_market_card():
     """시장 데이터 카드 생성"""
     return dbc.Card([
-        dbc.CardHeader(html.H5("시장 데이터", className="m-0")),
+        dbc.CardHeader([
+            html.Div([
+                html.H5("시장 데이터", className="m-0"),
+                html.Div(id='current-price', className="ms-3 text-primary fw-bold")
+            ], className="d-flex align-items-center")
+        ]),
         dbc.CardBody([
-            dcc.Dropdown(
-                id='market-dropdown',
-                options=[{'label': market, 'value': market} for market in markets],
-                value=markets[0] if markets else None,
-                clearable=False,
-                className="mb-3"
-            ),
-            dcc.Graph(id='price-chart', config={'displayModeBar': True, 'scrollZoom': True})
+            dbc.Row([
+                dbc.Col([
+                    dcc.Dropdown(
+                        id='market-dropdown',
+                        options=[{'label': market, 'value': market} for market in markets],
+                        value=markets[0] if markets else None,
+                        clearable=False,
+                        className="mb-3"
+                    )
+                ], width=12, lg=6),
+                dbc.Col([
+                    html.Div(id='market-stats', className="text-end")
+                ], width=12, lg=6)
+            ]),
+            dcc.Graph(id='price-chart', config={
+                'displayModeBar': True,
+                'scrollZoom': True,
+                'modeBarButtonsToAdd': ['drawline', 'eraseshape']
+            })
         ], id='market-data'),
-        # 비트코인 지표 영역 추가
         dbc.CardFooter(html.Div(id='bitcoin-indicators', className="p-0"))
     ], className="mb-4 shadow-sm")
 
@@ -327,23 +342,34 @@ def create_layout():
             create_header(),
             create_trading_status(),
             
-            # Responsive grid layout
+            # Top row (Account and Strategy info)
             dbc.Row([
-                # Left column (account and market data)
                 dbc.Col([
-                    create_strategy_card(),  # 전략 카드 추가
                     create_account_card(),
-                    create_market_card(),
                 ], width=12, lg=8),
-                
-                # Right column (performance)
+                dbc.Col([
+                    create_strategy_card(),
+                ], width=12, lg=4),
+            ], className="mb-4"),
+            
+            # Market data row
+            dbc.Row([
+                dbc.Col([
+                    create_market_card(),
+                ], width=12)
+            ], className="mb-4"),
+            
+            # Performance and signals row
+            dbc.Row([
                 dbc.Col([
                     create_performance_card(),
+                ], width=12, lg=8),
+                dbc.Col([
                     create_signals_card(),
                 ], width=12, lg=4),
-            ]),
+            ], className="mb-4"),
             
-            # Full width row for trades
+            # Recent trades row
             dbc.Row([
                 dbc.Col([
                     create_trades_card()
@@ -714,51 +740,50 @@ def update_recent_trades(n, theme_href):
 
 # 시장 데이터 업데이트 및 캔들 차트 생성 콜백
 @app.callback(
-    Output('price-chart', 'figure'),
+    [Output('price-chart', 'figure'),
+     Output('current-price', 'children'),
+     Output('market-stats', 'children')],
     [Input('interval-component', 'n_intervals'),
      Input('market-dropdown', 'value'),
-     Input('theme-stylesheet', 'href')]  # 테마 변경에 따른 차트 스타일 업데이트
+     Input('theme-stylesheet', 'href')]
 )
 def update_price_chart(n, selected_market, theme_href):
     if not selected_market:
-        return create_empty_figure("마켓을 선택해주세요")
-
-    # 테마에 따른 차트 색상 결정
-    is_dark_theme = 'DARKLY' in theme_href if theme_href else True
-    color_theme = 'dark' if is_dark_theme else 'light'
-    colors = COLORS[color_theme]
-    
+        return create_empty_figure(), "", ""
+        
     try:
-        # 가격 데이터 가져오기 (1시간 캔들, 최근 100개)
-        candles = api.get_candles(selected_market, interval='minutes', count=60, unit=1)
+        # 테마에 따른 스타일 결정
+        is_dark_theme = 'DARKLY' in theme_href if theme_href else True
+        color_theme = 'dark' if is_dark_theme else 'light'
+        colors = COLORS[color_theme]
         
-        if not candles or len(candles) < 5:
-            return create_empty_figure(f"{selected_market} 데이터를 불러올 수 없습니다")
+        # 데이터 가져오기
+        candles = api.get_candles(selected_market, 'minutes', 200, 1)
+        if not candles:
+            return create_empty_figure("데이터를 가져올 수 없습니다"), "", ""
             
-        # 데이터 캐시에 저장
-        data_cache['market_data'][selected_market] = {
-            'candles': candles,
-            'last_update': datetime.now()
-        }
-        
-        # 데이터프레임 변환
+        # DataFrame 생성
         df = pd.DataFrame(candles)
-        df['candle_date_time_kst'] = pd.to_datetime(df['candle_date_time_kst'])
+        df['date'] = pd.to_datetime(df['candle_date_time_kst'])
+        df = df.set_index('date')
         
-        # OHLC 데이터
-        dates = df['candle_date_time_kst']
+        # 데이터 준비
+        dates = df.index
         opens = df['opening_price']
         highs = df['high_price']
         lows = df['low_price']
         closes = df['trade_price']
         volumes = df['candle_acc_trade_volume']
         
-        # 최근 시장 방향에 따른 색상
-        is_uptrend = closes.iloc[-1] >= opens.iloc[-1]
-        candle_color = colors['buy'] if is_uptrend else colors['sell']
-        vol_color = colors['buy'] if is_uptrend else colors['sell']
+        # 현재 가격 및 변동률 계산
+        current_price = closes.iloc[-1]
+        prev_price = closes.iloc[-2]
+        price_change = ((current_price - prev_price) / prev_price) * 100
         
-        # 캔들스틱 차트 생성
+        # 거래량 색상 설정
+        vol_color = colors['buy'] if closes.iloc[-1] >= opens.iloc[-1] else colors['sell']
+        
+        # 차트 생성
         fig = go.Figure()
         
         # 캔들스틱 추가
@@ -775,7 +800,7 @@ def update_price_chart(n, selected_market, theme_href):
             )
         )
         
-        # 거래량 바 차트 추가 (subplots 형태)
+        # 거래량 바 차트 추가
         fig.add_trace(
             go.Bar(
                 x=dates,
@@ -801,7 +826,6 @@ def update_price_chart(n, selected_market, theme_href):
             margin=dict(l=50, r=50, t=50, b=50, pad=4),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             hovermode='x unified',
-            # 테마별 스타일 설정
             template='plotly_dark' if is_dark_theme else 'plotly_white',
             paper_bgcolor=colors['card_bg'],
             plot_bgcolor=colors['card_bg'],
@@ -823,30 +847,32 @@ def update_price_chart(n, selected_market, theme_href):
             zeroline=False
         )
         
-        # 최근 가격 주석 추가
-        last_price = closes.iloc[-1]
-        last_time = dates.iloc[-1]
-        fig.add_annotation(
-            x=last_time,
-            y=last_price,
-            text=f"{last_price:,.0f}원",
-            showarrow=True,
-            arrowhead=2,
-            arrowcolor=candle_color,
-            arrowsize=1,
-            arrowwidth=2,
-            bgcolor=colors['card_bg'],
-            bordercolor=candle_color,
-            borderwidth=2,
-            borderpad=4,
-            font=dict(size=14, color=colors['text'])
-        )
+        # 현재 가격 표시
+        current_price_text = f"{current_price:,.0f} KRW"
         
-        return fig
+        # 시장 통계 정보
+        market_stats = html.Div([
+            html.Span([
+                html.Span("변동률: ", className="text-muted"),
+                html.Span(f"{price_change:+.2f}%", 
+                         className="fw-bold",
+                         style={"color": colors['buy'] if price_change >= 0 else colors['sell']})
+            ], className="me-3"),
+            html.Span([
+                html.Span("24시간 고가: ", className="text-muted"),
+                html.Span(f"{highs.max():,.0f}", className="fw-bold")
+            ], className="me-3"),
+            html.Span([
+                html.Span("24시간 저가: ", className="text-muted"),
+                html.Span(f"{lows.min():,.0f}", className="fw-bold")
+            ])
+        ])
+        
+        return fig, current_price_text, market_stats
         
     except Exception as e:
-        logger.error(f"차트 업데이트 중 오류 발생: {str(e)}")
-        return create_empty_figure(f"오류: {str(e)[:100]}")
+        logger.error(f"가격 차트 업데이트 중 오류 발생: {str(e)}")
+        return create_empty_figure(f"오류: {str(e)[:100]}"), "", ""
 
 # 트레이딩 신호 차트 업데이트
 @app.callback(
@@ -1323,7 +1349,7 @@ def update_bitcoin_indicators(n, theme_href):
         traceback.print_exc()
         return dbc.Alert(f"비트코인 시장 지표를 업데이트하는 중 오류 발생: {str(e)[:100]}", color="danger", className="m-0")
 
-# 전략 정보 업데이트 콜백 추가
+# 전략 정보 업데이트 콜백 수정
 @app.callback(
     Output('strategy-info', 'children'),
     [Input('interval-component', 'n_intervals'),
@@ -1344,10 +1370,10 @@ def update_strategy_info(n_intervals, n_clicks, theme_href):
         # SMA 전략 정보
         strategies.append({
             'name': 'SMA 교차 전략',
-            'description': '단기(5일선)가 장기(20일선)를 상향돌파하면 매수, 하향돌파하면 매도',
+            'description': '단기(3일선)가 장기(10일선)를 상향돌파하면 매수, 하향돌파하면 매도',
             'params': {
-                '단기 이동평균': '5일',
-                '장기 이동평균': '20일',
+                '단기 이동평균': '3일',
+                '장기 이동평균': '10일',
                 '시그널 체크': '크로스오버 감지'
             }
         })
@@ -1357,9 +1383,9 @@ def update_strategy_info(n_intervals, n_clicks, theme_href):
             'name': 'RSI 전략',
             'description': 'RSI 지표가 과매도 영역에서 반등 시 매수, 과매수 영역에서 하락 시 매도',
             'params': {
-                '기간': '14일', 
-                '과매수 기준': '70 이상',
-                '과매도 기준': '30 이하'
+                '기간': '8일', 
+                '과매수 기준': '80 이상',
+                '과매도 기준': '20 이하'
             }
         })
         
@@ -1368,8 +1394,8 @@ def update_strategy_info(n_intervals, n_clicks, theme_href):
             'name': '볼린저 밴드 전략',
             'description': '가격이 하단밴드 아래로 내려가면 매수, 상단밴드 위로 올라가면 매도',
             'params': {
-                '이동평균 기간': '20일',
-                '표준편차 배수': '2.0',
+                '이동평균 기간': '10일',
+                '표준편차 배수': '2.5',
                 '밴드 폭': '밴드폭 기준 거래 없음'
             }
         })
