@@ -11023,3 +11023,39 @@ IndexError: list index out of range
 2025-03-23 18:28:50,976 - INFO - 192.168.0.81 - - [23/Mar/2025 18:28:50] "POST /_dash-update-component HTTP/1.1" 200 -
 2025-03-23 18:28:50,983 - INFO - 192.168.0.81 - - [23/Mar/2025 18:28:50] "POST /_dash-update-component HTTP/1.1" 200 -
 2025-03-23 18:28:52,127 - INFO - 192.168.0.81 - - [23/Mar/2025 18:28:52] "POST /_dash-update-component HTTP/1.1" 200 -
+2025-03-25 20:38:20,965 - INFO - Logging setup complete
+2025-03-25 20:38:20,965 - INFO - Upbit API client initialized
+2025-03-25 20:38:20,965 - INFO - Risk Manager initialized - 전액 거래 모드 활성화
+2025-03-25 20:38:20,965 - INFO - Trading Engine initialized with markets: ['KRW-BTC'], interval: 3 minutes
+2025-03-25 20:38:20,965 - INFO - Initialized SMAStrategy for KRW-BTC
+2025-03-25 20:38:20,965 - INFO - SMA Strategy initialized with windows 4/15
+2025-03-25 20:38:20,966 - INFO - Initialized SMAStrategy for KRW-BTC
+2025-03-25 20:38:20,966 - INFO - Initialized RSIStrategy for KRW-BTC
+2025-03-25 20:38:20,966 - INFO - RSI Strategy initialized with period=10, overbought=75, oversold=25
+2025-03-25 20:38:20,966 - INFO - Initialized RSIStrategy for KRW-BTC
+2025-03-25 20:38:20,966 - INFO - Initialized BollingerStrategy for KRW-BTC
+2025-03-25 20:38:20,966 - INFO - Bollinger Bands Strategy initialized with period=15, std_dev=2.2
+2025-03-25 20:38:20,966 - INFO - Initialized BollingerStrategy for KRW-BTC
+2025-03-25 20:38:20,966 - INFO - Trading engine started with interval: 3 minutes
+2025-03-25 20:38:20,966 - INFO - Starting trading engine
+2025-03-25 20:38:20,966 - INFO - 거래 기능이 자동으로 활성화되었습니다. 거래 가능 상태: 활성화
+2025-03-25 20:38:20,967 - INFO - Running trading iteration at 2025-03-25 20:38:20.967025
+2025-03-25 20:38:20,967 - INFO - Starting dashboard
+2025-03-25 20:38:20,967 - INFO - Processing market: KRW-BTC
+2025-03-25 20:38:20,967 - INFO - Dashboard 데이터 초기화 완료
+2025-03-25 20:38:21,147 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:21] "GET /_reload-hash HTTP/1.1" 200 -
+2025-03-25 20:38:21,195 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:21] "GET /_dash-layout HTTP/1.1" 200 -
+2025-03-25 20:38:21,195 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:21] "GET /_dash-dependencies HTTP/1.1" 200 -
+2025-03-25 20:38:21,356 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:21] "POST /_dash-update-component HTTP/1.1" 200 -
+2025-03-25 20:38:21,400 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:21] "POST /_dash-update-component HTTP/1.1" 200 -
+2025-03-25 20:38:21,424 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:21] "POST /_dash-update-component HTTP/1.1" 200 -
+2025-03-25 20:38:21,428 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:21] "POST /_dash-update-component HTTP/1.1" 200 -
+2025-03-25 20:38:21,534 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:21] "POST /_dash-update-component HTTP/1.1" 200 -
+2025-03-25 20:38:21,535 - INFO - BTC 계정을 찾을 수 없어 더미 계정을 생성합니다.
+2025-03-25 20:38:21,553 - INFO - BTC 티커 조회 성공: 129080000.0
+2025-03-25 20:38:21,555 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:21] "POST /_dash-update-component HTTP/1.1" 200 -
+2025-03-25 20:38:21,977 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:21] "POST /_dash-update-component HTTP/1.1" 200 -
+2025-03-25 20:38:21,998 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:21] "POST /_dash-update-component HTTP/1.1" 200 -
+2025-03-25 20:38:22,003 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:22] "POST /_dash-update-component HTTP/1.1" 200 -
+2025-03-25 20:38:22,696 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:22] "POST /_dash-update-component HTTP/1.1" 200 -
+2025-03-25 20:38:24,146 - INFO - 192.168.0.56 - - [25/Mar/2025 20:38:24] "GET /_reload-hash HTTP/1.1" 200 -
