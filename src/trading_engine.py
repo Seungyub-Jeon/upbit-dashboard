@@ -285,145 +285,159 @@ class TradingEngine:
             logger.info(f"Trading is disabled. Ignoring {action} signal for {market} from {strategy_name}")
             return
             
-        # 최대 재시도 횟수
-        max_retries = 3
-        
-        for attempt in range(max_retries):
-            try:
-                # Get current price if not provided
+        try:
+            # Get current price if not provided
+            if not price:
+                price = self.api.get_current_price(market)
                 if not price:
-                    price = self.api.get_current_price(market)
-                    if not price:
-                        logger.error(f"Could not fetch current price for {market}")
-                        return
-                
-                if action == 'BUY':
-                    # 전액 거래 모드
-                    if self.full_amount_mode:
-                        # 전체 KRW 잔고의 99.95%를 사용 (수수료 고려)
-                        balance_krw = self.api.get_balance('KRW')
-                        
-                        # 최소 거래 금액 확인 (5,000원)
-                        MIN_ORDER_AMOUNT = 5000
-                        
-                        if balance_krw < MIN_ORDER_AMOUNT:
-                            logger.warning(f"Cannot BUY {market}: 잔액({balance_krw}원)이 최소 거래 금액({MIN_ORDER_AMOUNT}원)보다 적습니다.")
-                            return
-                        
-                        if balance_krw <= 0:
-                            logger.warning(f"Cannot BUY {market}: Insufficient KRW balance")
-                            return
-                        
-                        # 단기 트레이딩: 잔액의 100% 사용
-                        trade_ratio = 1.0
-                        
-                        # 최소 금액 확인: 거래금액이 5000원 이상이어야 함
-                        amount = min(balance_krw * trade_ratio, balance_krw * 0.9995)  # 수수료 고려
-                        
-                        if amount < MIN_ORDER_AMOUNT:
-                            amount = MIN_ORDER_AMOUNT  # 최소 5,000원
-                        
-                        # 주문 수량 계산
-                        volume = amount / price
-                        
-                        # 소수점 8자리까지만 사용 (업비트 제한)
-                        volume = round(volume, 8)
-                        
-                        logger.info(f"단기 트레이딩 모드: {market} 매수 - {amount}원 (수량: {volume}, 잔액: {balance_krw}원)")
-                        
-                        # 주문 실행
-                        order = self.api.place_order(market, 'bid', volume, price, 'limit')
-                        if order:
-                            logger.info(f"매수 주문 완료: {order['uuid']}")
-                            # 매수 가격 기록
-                            self.buy_prices[market] = price
-                            return True
-                    else:
-                        # 기존 로직 (리스크 관리 적용)
-                        position_size = self.risk_manager.calculate_position_size(market, price)
-                        if position_size <= 0:
-                            logger.warning(f"Calculated position size for {market} is zero")
-                            return
-                        
-                        # 최소 거래 금액 확인 (5,000원)
-                        MIN_ORDER_AMOUNT = 5000
-                        
-                        # Calculate volume from position size
-                        balance_krw = self.api.get_balance('KRW')
-                        
-                        if balance_krw < MIN_ORDER_AMOUNT:
-                            logger.warning(f"Cannot BUY {market}: 잔액({balance_krw}원)이 최소 거래 금액({MIN_ORDER_AMOUNT}원)보다 적습니다.")
-                            return
-                        
-                        # 단기 트레이딩: 계산된 포지션의 100% 사용
-                        position_size = min(position_size * 1.0, position_size)
-                        
-                        amount = min(position_size, balance_krw * 0.9995)
-                        
-                        # 최소 금액 확인
-                        if amount < MIN_ORDER_AMOUNT:
-                            amount = MIN_ORDER_AMOUNT
-                        
-                        volume = amount / price
-                        
-                        # 소수점 8자리까지만 사용 (업비트 제한)
-                        volume = round(volume, 8)
-                        
-                        logger.info(f"Placing BUY order for {market}: {volume} at {price} (Signal from {strategy_name})")
-                        order = self.api.place_order(market, 'bid', volume, price, 'limit')
-                        if order:
-                            logger.info(f"Buy order placed: {order['uuid']}")
-                            # 매수 가격 기록
-                            self.buy_prices[market] = price
-                            return True
+                    logger.error(f"Could not fetch current price for {market}")
+                    return
+            
+            if action == 'BUY':
+                # 전액 거래 모드
+                if self.full_amount_mode:
+                    # 전체 KRW 잔고의 99.95%를 사용 (수수료 고려)
+                    balance_krw = self.api.get_balance('KRW')
                     
-                elif action == 'SELL':
-                    # 보유 수량 전체 매도
-                    currency = market.split('-')[1]
-                    balance = self.api.get_balance(currency)
+                    # 최소 거래 금액 확인 (5,000원)
+                    MIN_ORDER_AMOUNT = 5000
                     
-                    if balance <= 0:
-                        logger.warning(f"Cannot SELL {market}: No balance")
+                    if balance_krw < MIN_ORDER_AMOUNT:
+                        logger.warning(f"Cannot BUY {market}: 잔액({balance_krw}원)이 최소 거래 금액({MIN_ORDER_AMOUNT}원)보다 적습니다.")
                         return
                     
-                    # 매수 가격 확인 (매수 평균가 가져오기)
-                    avg_buy_price = self.api.get_avg_buy_price(currency)
-                    if not avg_buy_price:
-                        logger.warning(f"Cannot get average buy price for {currency}")
-                        # 기록된 매수 가격 사용 시도
-                        avg_buy_price = self.buy_prices.get(market, 0)
-                        
-                    # 최소 마진률 계산 (1%)
-                    MIN_PROFIT_MARGIN = 1.0  # 1% 수익률
+                    if balance_krw <= 0:
+                        logger.warning(f"Cannot BUY {market}: Insufficient KRW balance")
+                        return
                     
-                    if avg_buy_price > 0:
-                        current_margin = ((price - avg_buy_price) / avg_buy_price) * 100
-                        
-                        if current_margin < MIN_PROFIT_MARGIN:
-                            logger.info(f"현재 마진률({current_margin:.2f}%)이 최소 마진률({MIN_PROFIT_MARGIN}%)보다 낮아 매도하지 않습니다: {market}")
-                            return
-                            
-                        logger.info(f"전액 매도: {market} - {balance} 수량, 마진률: {current_margin:.2f}%")
-                    else:
-                        logger.info(f"매수 가격 정보가 없어 마진률 계산 없이 매도: {market} - {balance} 수량")
+                    # 단기 트레이딩: 잔액의 100% 사용
+                    trade_ratio = 1.0
+                    
+                    # 최소 금액 확인: 거래금액이 5000원 이상이어야 함
+                    amount = min(balance_krw * trade_ratio, balance_krw * 0.9995)  # 수수료 고려
+                    
+                    if amount < MIN_ORDER_AMOUNT:
+                        amount = MIN_ORDER_AMOUNT  # 최소 5,000원
+                    
+                    # 주문 수량 계산
+                    volume = amount / price
+                    
+                    # 소수점 8자리까지만 사용 (업비트 제한)
+                    volume = round(volume, 8)
+                    
+                    logger.info(f"단기 트레이딩 모드: {market} 매수 - {amount}원 (수량: {volume}, 잔액: {balance_krw}원)")
                     
                     # 주문 실행
-                    order = self.api.place_order(market, 'ask', balance, price, 'limit')
+                    order = self.api.place_order(market, 'bid', volume, price, 'limit')
                     if order:
-                        logger.info(f"매도 주문 완료: {order['uuid']}")
-                        # 해당 마켓의 매수 가격 기록 삭제
-                        if market in self.buy_prices:
-                            del self.buy_prices[market]
+                        logger.info(f"매수 주문 완료: {order['uuid']}")
+                        # 매수 가격 기록
+                        self.buy_prices[market] = price
                         return True
-                
-                # 주문 성공 시 루프 종료
-                break
-                    
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    logger.warning(f"주문 실패, 재시도 중... ({attempt+1}/{max_retries}): {str(e)}")
-                    time.sleep(1)  # 잠시 대기 후 재시도
                 else:
-                    logger.error(f"최대 재시도 횟수 초과, 주문 실패: {str(e)}")
+                    # 기존 로직 (리스크 관리 적용)
+                    position_size = self.risk_manager.calculate_position_size(market, price)
+                    if position_size <= 0:
+                        logger.warning(f"Calculated position size for {market} is zero")
+                        return
+                    
+                    # 최소 거래 금액 확인 (5,000원)
+                    MIN_ORDER_AMOUNT = 5000
+                    
+                    # Calculate volume from position size
+                    balance_krw = self.api.get_balance('KRW')
+                    
+                    if balance_krw < MIN_ORDER_AMOUNT:
+                        logger.warning(f"Cannot BUY {market}: 잔액({balance_krw}원)이 최소 거래 금액({MIN_ORDER_AMOUNT}원)보다 적습니다.")
+                        return
+                    
+                    # 단기 트레이딩: 계산된 포지션의 100% 사용
+                    position_size = min(position_size * 1.0, position_size)
+                    
+                    amount = min(position_size, balance_krw * 0.9995)
+                    
+                    # 최소 금액 확인
+                    if amount < MIN_ORDER_AMOUNT:
+                        amount = MIN_ORDER_AMOUNT
+                    
+                    volume = amount / price
+                    
+                    # 소수점 8자리까지만 사용 (업비트 제한)
+                    volume = round(volume, 8)
+                    
+                    logger.info(f"Placing BUY order for {market}: {volume} at {price} (Signal from {strategy_name})")
+                    order = self.api.place_order(market, 'bid', volume, price, 'limit')
+                    if order:
+                        logger.info(f"Buy order placed: {order['uuid']}")
+                        # 매수 가격 기록
+                        self.buy_prices[market] = price
+                        return True
+            
+            elif action == 'SELL':
+                # 보유 수량 전체 매도
+                currency = market.split('-')[1]
+                balance = self.api.get_balance(currency)
+                
+                if balance <= 0:
+                    logger.warning(f"Cannot SELL {market}: No balance")
+                    return
+                
+                # 손절 로직 추가
+                avg_buy_price = self.api.get_avg_buy_price(currency)
+                if avg_buy_price:
+                    current_margin = ((price - avg_buy_price) / avg_buy_price) * 100
+                    
+                    # 손절 조건 체크
+                    stop_loss_conditions = [
+                        current_margin < -1.5,  # 1.5% 손실 시 손절
+                        (current_margin < -1.0 and self.is_strong_sell_signal(market)),  # 1% 손실 + 강한 매도 신호
+                        (current_margin < -0.8 and self.is_extreme_sell_signal(market))  # 0.8% 손실 + 극단적 매도 신호
+                    ]
+                    
+                    if any(stop_loss_conditions):
+                        logger.info(f"손절 조건 충족: 현재 마진률 {current_margin:.2f}%")
+                        logger.info(f"전액 매도: {market} - {balance} 수량")
+                        order = self.api.place_order(market, 'ask', balance, price, 'limit')
+                        if order:
+                            logger.info(f"손절 매도 주문 완료: {order['uuid']}")
+                        return
+                
+                # 일반 매도 로직
+                logger.info(f"전액 매도: {market} - {balance} 수량")
+                order = self.api.place_order(market, 'ask', balance, price, 'limit')
+                if order:
+                    logger.info(f"매도 주문 완료: {order['uuid']}")
+                    
+        except Exception as e:
+            logger.error(f"Error executing trade: {str(e)}")
+    
+    def is_strong_sell_signal(self, market):
+        """
+        강한 매도 신호 확인 (여러 전략이 동시에 매도 신호를 발생시킬 때)
+        """
+        sell_signals = 0
+        for strategy in self.strategies[market]:
+            signal = strategy.generate_signal()
+            if signal and signal.get('action') == 'SELL':
+                sell_signals += 1
         
+        return sell_signals >= 2  # 2개 이상의 전략이 매도 신호를 발생시킬 때
+    
+    def is_extreme_sell_signal(self, market):
+        """
+        극단적 매도 신호 확인 (RSI가 매우 높거나 볼린저 밴드가 크게 이탈할 때)
+        """
+        for strategy in self.strategies[market]:
+            if isinstance(strategy, RSIStrategy):
+                signal = strategy.generate_signal()
+                if signal and signal.get('action') == 'SELL':
+                    latest_rsi = strategy.df['rsi'].iloc[-1]
+                    if latest_rsi > 85:  # RSI가 85 이상일 때
+                        return True
+            elif isinstance(strategy, BollingerStrategy):
+                signal = strategy.generate_signal()
+                if signal and signal.get('action') == 'SELL':
+                    latest_bbw = strategy.df['bbw'].iloc[-1]
+                    if latest_bbw > 0.05:  # 볼린저 밴드 폭이 5% 이상일 때
+                        return True
         return False
