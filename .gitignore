@@ -22,7 +22,17 @@ build/
 # Logs
 logs/
 *.log
+trading_*.log
 
 # Local development settings
 .env
-.env.local 
+.env.local
+.env.*
+!.env.example
+
+# Local configuration
+config/local_config.py
+
+# System files
+.DS_Store
+Thumbs.db 
