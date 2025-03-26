@@ -70,47 +70,34 @@ class TradingEngine:
         balance = self.api.get_balance(currency)
         return balance > 0
     
-    def _adjust_strategies_for_volatility(self, market, volatility):
-        """
-        변동성에 따른 전략 파라미터 조정
-        """
-        if market not in self.strategies:
-            return
-            
-        logger.info(f"{market} 변동성: {volatility:.2f}%")
-        
-        # 변동성이 높은 경우 (2% 이상)
-        if volatility > 2.0:
-            logger.info(f"{market} 변동성이 높음: 보수적 전략으로 전환")
-            for strategy in self.strategies[market]:
-                if isinstance(strategy, RSIStrategy):
-                    # RSI 과매수/과매도 기준 더 극단적으로 조정
-                    strategy.overbought = 85  # 기본 80에서 상향
-                    strategy.oversold = 15    # 기본 20에서 하향
-                elif isinstance(strategy, BollingerStrategy):
-                    # 볼린저 밴드 표준편차 증가
-                    strategy.std_dev = 3.0    # 기본 2.5에서 상향
-        # 변동성이 낮은 경우 (0.5% 미만)
-        elif volatility < 0.5:
-            logger.info(f"{market} 변동성이 낮음: 공격적 전략으로 전환")
-            for strategy in self.strategies[market]:
-                if isinstance(strategy, RSIStrategy):
-                    # RSI 과매수/과매도 기준 덜 극단적으로 조정
-                    strategy.overbought = 70  # 기본 80에서 하향
-                    strategy.oversold = 30    # 기본 20에서 상향
-                elif isinstance(strategy, BollingerStrategy):
-                    # 볼린저 밴드 표준편차 감소
-                    strategy.std_dev = 2.0    # 기본 2.5에서 하향
-        # 보통 변동성 (0.5%~2%)
-        else:
-            # 기본 설정 복원
-            for strategy in self.strategies[market]:
-                if isinstance(strategy, RSIStrategy):
-                    strategy.overbought = 80
-                    strategy.oversold = 20
-                elif isinstance(strategy, BollingerStrategy):
-                    strategy.std_dev = 2.5
-    
+    def _adjust_strategies_for_volatility(self, market: str, volatility: float):
+        """변동성에 따른 전략 조정"""
+        try:
+            # 변동성에 따른 전략 파라미터 조정
+            if volatility > 2.0:  # 2.0% 이상일 때
+                # 높은 변동성: 더 공격적인 설정
+                self.strategies[market]['rsi'].overbought = 85  # 90에서 85로 수정
+                self.strategies[market]['rsi'].oversold = 15    # 10에서 15로 수정
+                self.strategies[market]['bollinger'].std_dev = 3.0  # 3.5에서 3.0으로 수정
+                logger.info(f"높은 변동성 감지: {market} - RSI(85/15), BB(3.0)")
+                
+            elif volatility < 0.5:  # 0.5% 미만일 때
+                # 낮은 변동성: 더 보수적인 설정
+                self.strategies[market]['rsi'].overbought = 70  # 75에서 70으로 수정
+                self.strategies[market]['rsi'].oversold = 30    # 25에서 30으로 수정
+                self.strategies[market]['bollinger'].std_dev = 2.0  # 2.5에서 2.0으로 수정
+                logger.info(f"낮은 변동성 감지: {market} - RSI(70/30), BB(2.0)")
+                
+            else:  # 0.5% ~ 2.0% 사이
+                # 정상 변동성: 기본 설정
+                self.strategies[market]['rsi'].overbought = 80  # 85에서 80으로 수정
+                self.strategies[market]['rsi'].oversold = 20    # 15에서 20으로 수정
+                self.strategies[market]['bollinger'].std_dev = 2.5  # 3.0에서 2.5로 수정
+                logger.info(f"정상 변동성: {market} - RSI(80/20), BB(2.5)")
+                
+        except Exception as e:
+            logger.error(f"전략 조정 중 오류 발생: {str(e)}")
+
     def process_signals(self, market, signals):
         """
         Process signals from strategies
@@ -477,17 +464,17 @@ class TradingEngine:
         stop_loss_reason = ""
         
         # 기본 손절 조건
-        if current_margin <= -0.8:  # -1.0%에서 -0.8%로 상향
+        if current_margin <= -1.0:  # -0.8%에서 -1.0%로 수정
             stop_loss_triggered = True
             stop_loss_reason = "기본 손절 조건 도달"
         
         # 강한 매도 신호가 있을 때 손절
-        elif current_margin <= -0.5 and strong_sell_signals >= 2:  # -0.8%에서 -0.5%로 상향
+        elif current_margin <= -0.7 and strong_sell_signals >= 2:  # -0.5%에서 -0.7%로 수정
             stop_loss_triggered = True
             stop_loss_reason = "강한 매도 신호로 인한 손절"
         
         # 극단적인 매도 신호가 있을 때 손절
-        elif current_margin <= -0.3 and extreme_sell_signals >= 1:  # -0.5%에서 -0.3%로 상향
+        elif current_margin <= -0.5 and extreme_sell_signals >= 1:  # -0.3%에서 -0.5%로 수정
             stop_loss_triggered = True
             stop_loss_reason = "극단적인 매도 신호로 인한 손절"
         
@@ -519,17 +506,17 @@ class TradingEngine:
         take_profit_reason = ""
         
         # 기본 익절 조건
-        if current_margin >= 2.5:  # 2.0%에서 2.5%로 상향
+        if current_margin >= 2.0:  # 2.5%에서 2.0%로 수정
             take_profit_triggered = True
             take_profit_reason = "기본 익절 조건 도달"
         
         # 강한 매도 신호가 있을 때 익절
-        elif current_margin >= 2.0 and strong_sell_signals >= 2:  # 1.5%에서 2.0%로 상향
+        elif current_margin >= 1.5 and strong_sell_signals >= 2:  # 2.0%에서 1.5%로 수정
             take_profit_triggered = True
             take_profit_reason = "강한 매도 신호로 인한 익절"
         
         # 극단적인 매도 신호가 있을 때 익절
-        elif current_margin >= 1.5 and extreme_sell_signals >= 1:  # 1.0%에서 1.5%로 상향
+        elif current_margin >= 1.2 and extreme_sell_signals >= 1:  # 1.5%에서 1.2%로 수정
             take_profit_triggered = True
             take_profit_reason = "극단적인 매도 신호로 인한 익절"
         
@@ -539,31 +526,3 @@ class TradingEngine:
             return True
         
         return False
-
-    def _adjust_strategies_for_volatility(self, market: str, volatility: float):
-        """변동성에 따른 전략 조정"""
-        try:
-            # 변동성에 따른 전략 파라미터 조정
-            if volatility > 2.0:  # 3.0%에서 2.0%로 하향
-                # 높은 변동성: 더 공격적인 설정
-                self.strategies[market]['rsi'].overbought = 90  # 85에서 90으로 상향
-                self.strategies[market]['rsi'].oversold = 10    # 15에서 10으로 하향
-                self.strategies[market]['bollinger'].std_dev = 3.5  # 3.0에서 3.5로 상향
-                logger.info(f"높은 변동성 감지: {market} - RSI(90/10), BB(3.5)")
-                
-            elif volatility < 0.5:
-                # 낮은 변동성: 더 보수적인 설정
-                self.strategies[market]['rsi'].overbought = 75  # 70에서 75로 상향
-                self.strategies[market]['rsi'].oversold = 25    # 30에서 25로 하향
-                self.strategies[market]['bollinger'].std_dev = 2.5  # 2.0에서 2.5로 상향
-                logger.info(f"낮은 변동성 감지: {market} - RSI(75/25), BB(2.5)")
-                
-            else:
-                # 정상 변동성: 기본 설정
-                self.strategies[market]['rsi'].overbought = 85  # 80에서 85로 상향
-                self.strategies[market]['rsi'].oversold = 15    # 20에서 15로 하향
-                self.strategies[market]['bollinger'].std_dev = 3.0  # 2.5에서 3.0으로 상향
-                logger.info(f"정상 변동성: {market} - RSI(85/15), BB(3.0)")
-                
-        except Exception as e:
-            logger.error(f"전략 조정 중 오류 발생: {str(e)}")
