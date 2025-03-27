@@ -23,19 +23,19 @@ from src.dashboard.app import run_dashboard, TRADING_ENGINE
 # 전략 파라미터 설정
 STRATEGY_PARAMS = {
     'sma': {
-        'short_window': 3,    # 2일에서 3일로 수정
-        'long_window': 7,     # 5일에서 7일로 수정
-        'volume_threshold': 1.2  # 1.5에서 1.2로 낮춤
+        'short_window': 2,    # 3일에서 2일로 단축
+        'long_window': 5,     # 7일에서 5일로 단축
+        'volume_threshold': 1.2
     },
     'rsi': {
-        'period': 7,          # 5일에서 7일로 수정
-        'overbought': 80,     # 85에서 80으로 수정
-        'oversold': 20,       # 15에서 20으로 수정
+        'period': 5,          # 7일에서 5일로 단축
+        'overbought': 75,     # 80에서 75로 하향
+        'oversold': 25,       # 20에서 25로 상향
         'volume_threshold': 1.2
     },
     'bollinger': {
-        'period': 7,          # 5일에서 7일로 수정
-        'std_dev': 2.5,       # 3.0에서 2.5로 수정
+        'period': 5,          # 7일에서 5일로 단축
+        'std_dev': 2.0,       # 2.5에서 2.0으로 감소
         'volume_threshold': 1.2
     }
 }
@@ -45,14 +45,14 @@ RISK_PARAMS = {
     'max_position_size': 0.3,  # 최대 포지션 크기 (계좌의 30%)
     'min_order_amount': 5000,  # 최소 주문 금액
     'stop_loss': {
-        'default': 1.0,      # -0.8%에서 -1.0%로 수정
-        'strong_sell': 0.7,  # -0.5%에서 -0.7%로 수정
-        'extreme_sell': 0.5  # -0.3%에서 -0.5%로 수정
+        'default': 1.5,      # -1.0%에서 -1.5%로 하향
+        'strong_sell': 1.0,  # -0.7%에서 -1.0%로 하향
+        'extreme_sell': 0.8  # -0.5%에서 -0.8%로 하향
     },
     'take_profit': {
-        'default': 2.0,      # 2.5%에서 2.0%로 수정
-        'strong_sell': 1.5,  # 2.0%에서 1.5%로 수정
-        'extreme_sell': 1.2  # 1.5%에서 1.2%로 수정
+        'default': 3.0,      # 2.0%에서 3.0%로 상향
+        'strong_sell': 2.5,  # 1.5%에서 2.5%로 상향
+        'extreme_sell': 2.0  # 1.2%에서 2.0%로 상향
     }
 }
 
